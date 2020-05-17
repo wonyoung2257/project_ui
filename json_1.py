@@ -76,7 +76,7 @@ OPENCV_OBJECT_TRACKERS = {
     "mosse": cv2.TrackerMOSSE_create
 }
 
-player_create_count = 0
+player_create_count = 0  # 추적하고 있는 플레이어 수
 # 플레이어 기록 키
 
 # 플레이어 순서
@@ -910,9 +910,9 @@ class Ui_Form(object):
         Form.setWindowTitle(_translate("Form", "야구 트랙킹 프로그램"))
         self.openVideo_pushButton.setText(_translate("Form", "영상 열기"))
         self.trans_pushButton.setText(_translate("Form", "변환"))
-        self.addTracker_pushButton.setText(_translate("Form", "추적"))
-        self.routeDraw_pushButton.setText(_translate("Form", "경로 그리기"))
-        self.routeCancel_pushButton.setText(_translate("Form", "경로 종료"))
+        self.addTracker_pushButton.setText(_translate("Form", "객체 선택"))
+        self.routeDraw_pushButton.setText(_translate("Form", "추적 시작"))
+        self.routeCancel_pushButton.setText(_translate("Form", "추적 종료"))
         self.closeVideo_pushButton.setText(_translate("Form", "영상 닫기"))
         self.positions_hitter_label.setText(_translate("Form", "타자"))
         self.positions_first_label.setText(_translate("Form", "1루 주자"))
@@ -949,6 +949,7 @@ class Ui_Form(object):
         video_path = easygui.fileopenbox()
         cap = cv2.VideoCapture(video_path)
 
+
         fps = cap.get(cv2.CAP_PROP_FPS)
 
         if not cap.isOpened():
@@ -963,7 +964,7 @@ class Ui_Form(object):
         ret, img = cap.read()
 
         img_original = img
-
+        # 영상 열기후 영상열기 비활, 영상 닫기, 변환, 재생, 이동 활성
         ui.openVideo_pushButton.setDisabled(True)
         ui.closeVideo_pushButton.setEnabled(True)
         ui.trans_pushButton.setEnabled(True)
@@ -980,7 +981,14 @@ class Ui_Form(object):
         cv2.imshow("original", img)
 
     def transform(self):
-        cv2.setMouseCallback('original', mouse_callback)
+        global mouse_mod
+        if self.trans_pushButton.text() == "변환":
+            cv2.setMouseCallback('original', mouse_callback)
+        elif self.trans_pushButton.text() =="재 변환":
+            mouse_mod = 0
+            point_list_bool
+            del point_list[0:4]  # 원래 포인트 리스트 삭제
+            cv2.setMouseCallback('original', mouse_callback)
 
     def run(self):
         global running, img, frame, count, player_, player_create_count, frame_check, start_check, roi_i, out, fps, stop_bool
@@ -988,6 +996,11 @@ class Ui_Form(object):
         while running:
 
             ret, img = cap.read()
+
+            # self.videoTime_lineEdit.setText(_translate("Form", "0:00:00"))
+            now_viedo_time = cap.get(cv2.CAP_PROP_POS_MSEC)*0.001
+            self.videoTime_lineEdit.setText(str((datetime.timedelta(seconds=math.trunc(now_viedo_time)))))
+
 
             while stop_bool:
                 if self.player_Roi_bool[0] == True:
@@ -1099,8 +1112,17 @@ class Ui_Form(object):
                                                     ""
                                                     )
                 ui.closeVideo_pushButton.setDisabled(True)
-                ui.addTracker_pushButton.setEnabled(True)
                 ui.videoTimeMove_pushButton.setDisabled(True)
+                ui.trans_pushButton.setEnabled(False)
+                if not point_list:  # 재 시작시 변환 좌표가 없으면 객체 선택버튼 비활성화
+                    ui.addTracker_pushButton.setEnabled(False)
+                else:
+                    ui.addTracker_pushButton.setEnabled(True)
+                if self.draw_ing == True:
+                    ui.addTracker_pushButton.setEnabled(False)
+                else:
+                    ui.addTracker_pushButton.setEnabled(True)
+
                 return 0
 
             stop_bool = True
@@ -1133,15 +1155,28 @@ class Ui_Form(object):
                                                 "}\n"
                                                 ""
                                                 )
-            ui.closeVideo_pushButton.setEnabled(True)
-            if self.draw_ing == True:
-                ui.closeVideo_pushButton.setDisabled(True)
-            ui.addTracker_pushButton.setDisabled(True)
+            if player_create_count > 0 :
+                ui.closeVideo_pushButton.setEnabled(False)
+                ui.trans_pushButton.setEnabled(False)
+            else:
+                ui.closeVideo_pushButton.setEnabled(True)
+                ui.trans_pushButton.setEnabled(True)
+
+
             ui.videoTimeMove_pushButton.setEnabled(True)
 
+            if self.draw_ing == True:
+                ui.closeVideo_pushButton.setDisabled(True)
+        # if not point_list:
+            ui.addTracker_pushButton.setEnabled(False)
+        # else:
+        #     ui.addTracker_pushButton.setEnabled(True)
 
 
+
+        # 최초 재생하여 쓰레드 만드는 부분
         if start_stop_check == 1:
+            ui.trans_pushButton.setEnabled(False)
             ui.videoTimeMove_pushButton.setDisabled(True)
             running = True
             th = threading.Thread(target=self.run)
@@ -1175,7 +1210,12 @@ class Ui_Form(object):
                                                 ""
                                                 )
             ui.closeVideo_pushButton.setDisabled(True)
-            ui.addTracker_pushButton.setEnabled(True)
+            # 변환되면 활성화
+            if not point_list: # 최초 시작시 변환 좌표가 없으면 객체 선택버튼 비황
+                ui.addTracker_pushButton.setEnabled(False)
+            else:
+                ui.addTracker_pushButton.setEnabled(True)
+
             start_stop_check += 1
 
     def player_Roi(self):
@@ -1208,7 +1248,8 @@ class Ui_Form(object):
         ui.routeCancel_pushButton.setDisabled(True)
 
     def closeVideo(self):
-        global running, start_stop_check, img, stop_bool, point_list, mouse_mod
+        global running, start_stop_check, img, stop_bool, point_list, mouse_mod, point_list_bool
+        point_list_bool = False
         stop_bool = False
         self.player_Roi_draw = False
         self.save_video_bool = False
@@ -1217,6 +1258,8 @@ class Ui_Form(object):
         start_stop_check = 1
         img = None
         del point_list[0:4]
+
+
         mouse_mod = 0
 
         cv2.destroyAllWindows()
@@ -1226,6 +1269,8 @@ class Ui_Form(object):
         set_text(3, 0, 0, 0, 0)
         set_text(0, 0, 0, 0, 0)
 
+        ui.trans_pushButton.setText("변환")
+        ui.trans_pushButton.setEnabled(False)
         ui.openVideo_pushButton.setEnabled(True)
         ui.closeVideo_pushButton.setDisabled(True)
         ui.start_pushButton.setDisabled(True)
@@ -1264,7 +1309,6 @@ def save_record(player_position, player_distance, avg_speed, max_speed, lead_dis
         "4.Max_Speed": max_speed,
         "5.Lead_distance": lead_distance,
         "6.Point_Speed": [{"Point": pointList[0], "Speed": 0}]
-
     }
 
     for i in range(1, len(pointList)):
@@ -1335,13 +1379,19 @@ def mouse_callback(event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN:
             point_list.append((x, y))
             print(point_list)
-            cv2.circle(img_original, (x, y), 3, (0, 0, 255), -1)
-            cv2.imshow("original", img_original)
+            cv2.circle(img, (x, y), 3, (0, 0, 255), -1)
+            cv2.imshow("original", img)
             print(len(point_list))
 
-    if len(point_list) == 4 and mouse_mod == 0:
+    if len(point_list) == 4 and mouse_mod == 0 and ui.trans_pushButton.text() == "재 변환":
         calculator_point_list_y_ratio()
         mouse_mod += 1
+
+    elif len(point_list) == 4 and mouse_mod == 0 :
+        print("재변환 아님")
+        calculator_point_list_y_ratio()
+        mouse_mod += 1
+
 
 
 def calculator_point_list_y_ratio():
@@ -1353,6 +1403,8 @@ def calculator_point_list_y_ratio():
 
     if not point_list_bool:
         save_pointList()
+    elif ui.trans_pushButton.text() == "재 변환":
+        resave_poiintList(perspect_map_check())
 
     # 원근 변환 행렬
     perspect_map = cv2.getPerspectiveTransform(pts1, pts2)
@@ -1376,7 +1428,7 @@ def calculator_point_list_y_ratio():
     point_list_y_ratio = math.sqrt((pow(intersect_point[0] - point_list[3][0], 2)) + (pow(intersect_point[1] - point_list[3][1], 2))) / \
                          math.sqrt((pow(intersect_point[0] - point_list[1][0], 2)) + (pow(intersect_point[1] - point_list[1][1], 2)))
 
-    ui.trans_pushButton.setDisabled(True)  # 버튼 비활성화
+    # ui.trans_pushButton.setDisabled(True)  # 버튼 비활성화
 
 
 def createFolder(directory):
@@ -1387,13 +1439,15 @@ def createFolder(directory):
         print("만들기 에러" + directory)
 
 
-def save_pointList():
+def save_pointList() : # 베이스 좌표 저장하는 함수
+    global point_list_bool
+    point_list_bool = True
     fileNum = 0
 
     for i in os.listdir('perspect_map'):
         str1 = i.split(".")[0]
-        fileNum = int(str1)
-        print(fileNum)
+        fileNum = int(str1)  # perspect_map안에 저장된 파일의 목록을 가져옴
+        print("파일이름:",fileNum)
     fileNum += 1
 
     fileName = open('perspect_map/' + str(fileNum) + ".txt", 'w')
@@ -1401,31 +1455,56 @@ def save_pointList():
     fileName.write(str(point_list))
 
     print("변환 좌표가 저장되었습니다.")
+    ui.trans_pushButton.setText("재 변환")
+    ui.trans_pushButton.setEnabled(True)  # 버튼 활성화
+
+    fileName.close()
+
+def resave_poiintList(fileName):
+    str1 = fileName.split(".")[0]
+
+    fileNum = int(str1)
+
+    fileName = open('perspect_map/' + str(fileNum) + ".txt", 'w+')
+    fileName.write(video_path + "\n")
+    fileName.write(str(point_list))
+
+    print("재 변환 좌표가 저장되었습니다.")
     fileName.close()
 
 
 def perspect_map_check():
     global point_list, point_list_bool
 
-    for name in os.listdir('perspect_map'):
-        file = open('perspect_map\\' + name, 'r')
-        file_str = file.readline()
-        remove_str = file_str.rstrip('\n')
+    if ui.trans_pushButton.text() == "재 변환":
+        for name in os.listdir('perspect_map'):
+            file = open('perspect_map\\' + name, 'r')
+            file_str = file.readline()
+            remove_str = file_str.rstrip('\n')
 
-        if remove_str == video_path:
-            file_str = file.readline()  # 두번째 줄 읽어와 저장
-            print("file_str", file_str)
+            if remove_str == video_path:
+                return name
+    else:
+        for name in os.listdir('perspect_map'):
+            file = open('perspect_map\\' + name, 'r')
+            file_str = file.readline()
+            remove_str = file_str.rstrip('\n')
 
-            change_list(file_str)
+            if remove_str == video_path:  # 변환 좌표가 있을 때
+                file_str = file.readline()  # 두번째 줄 읽어와 저장
 
-            point_list_bool = True
-            calculator_point_list_y_ratio()
+                change_list(file_str)
 
-            ui.trans_pushButton.setDisabled(True)  # 버튼 비활성화
-            file.close()
-            break
-        else:
-            print("변환좌표 없음")
+                point_list_bool = True
+                calculator_point_list_y_ratio()
+
+                ui.trans_pushButton.setText("재 변환")
+                ui.trans_pushButton.setEnabled(True)  # 버튼 활성화
+
+                file.close()
+                break
+            else:
+                print("변환좌표 없음")
 
 
 def change_list(file_str):
